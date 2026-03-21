@@ -141,8 +141,8 @@ class JobAlertBot:
             "10+ years", "15+ years", "principal",
             "java developer", "react developer", "angular", "frontend developer",
             "data scientist", "machine learning engineer",
-            "php developer", "ruby", "swift developer", "ios developer", "ios software Engineer"
-            "android developer", "full stack", "devops", "cloud architect" , "linux" , "full stack"
+            "php developer", "ruby", "swift developer", "ios developer", "ios"
+            "android", "full stack", "devops", "cloud architect" , "linux" , "full stack" , 
         ]
         
         for word in exclude:
