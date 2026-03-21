@@ -495,9 +495,9 @@ class JobAlertBot:
                 seen_titles.add(title_normalized)
                 unique_jobs.append(job)
         
-        # إرسال أعلى 10 وظائف
+        # إرسال أعلى 100 وظيفة مرتبين بالنجوم
         sent_count = 0
-        for job in unique_jobs[:10]:
+        for job in unique_jobs[:100]:
             msg = self.format_job_message(job)
             print(f"  → {job['title'][:60]}... ({job['source']}) {'⭐' * job['stars']}")
             send_telegram_message(msg)
