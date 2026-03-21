@@ -46,21 +46,22 @@ class JobAlertBot:
         
         # كلمات البحث المخصوصة لبروفايلك
         self.search_queries = [
-            "AUTOSAR developer",
-            "AUTOSAR BSW engineer",
-            "Embedded Software Engineer AUTOSAR",
-            "Embedded C developer automotive",
+            "AUTOSAR",
+            "Classic AUTOSAR",
+            "Classical Autosar",
+            "Autosar Classic",
+            "Autosar classical",
+            "Embedded Software Engineer",
+            "Embedded C developer",
             "automotive software engineer",
-            "ECU software developer",
-            "CANoe engineer",
+            "Embedded software developer",
+            "CANoe",
             "Davinci configurator",
-            "embedded software engineer",
             "firmware engineer",
-            "embedded C developer",
-            "Python automation engineer automotive",
-            "test automation automotive",
-            "embedded engineer visa sponsorship",
-            "AUTOSAR engineer relocation",
+            "Vector tools",
+            "automotive engineer",
+            "visa sponsorship",
+            "AUTOSAR engineer"
         ]
         
         self.sent_jobs = set()
