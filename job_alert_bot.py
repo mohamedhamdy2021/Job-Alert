@@ -532,5 +532,5 @@ if __name__ == "__main__":
     else:
         while True:
             bot.run_search()
-            print("Waiting 1 hour for next job scan... ⏳")
-            time.sleep(3600)
+            print("Waiting 15 mins for next job scan... ⏳")
+            time.sleep(900)
