@@ -4,7 +4,8 @@ import json
 import os
 import time
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+import calendar
 from bs4 import BeautifulSoup
 
 # --- إعدادات تليجرام ---
@@ -58,6 +59,8 @@ class JobAlertBot:
             "embedded C developer",
             "Python automation engineer automotive",
             "test automation automotive",
+            "embedded engineer visa sponsorship",
+            "AUTOSAR engineer relocation",
         ]
         
         self.sent_jobs = set()
@@ -85,6 +88,40 @@ class JobAlertBot:
     def generate_job_hash(self, title, source):
         raw = f"{title}{source}".lower().strip()
         return hashlib.md5(raw.encode()).hexdigest()
+
+    def is_within_24h(self, published_parsed):
+        """Check if an RSS entry's published date is within the last 24 hours"""
+        if not published_parsed:
+            return True  # لو مفيش تاريخ نديها فرصة
+        try:
+            pub_timestamp = calendar.timegm(published_parsed)
+            pub_dt = datetime.fromtimestamp(pub_timestamp, tz=timezone.utc)
+            now_utc = datetime.now(tz=timezone.utc)
+            age = now_utc - pub_dt
+            return age <= timedelta(hours=24)
+        except Exception:
+            return True  # لو حصل أي مشكلة في التاريخ نعديها
+
+    def get_age_text(self, published_parsed):
+        """Convert published_parsed to human-readable age like '3h ago'"""
+        if not published_parsed:
+            return "Recent"
+        try:
+            pub_timestamp = calendar.timegm(published_parsed)
+            pub_dt = datetime.fromtimestamp(pub_timestamp, tz=timezone.utc)
+            now_utc = datetime.now(tz=timezone.utc)
+            age = now_utc - pub_dt
+            hours = int(age.total_seconds() / 3600)
+            if hours < 1:
+                mins = int(age.total_seconds() / 60)
+                return f"{mins}m ago"
+            elif hours < 24:
+                return f"{hours}h ago"
+            else:
+                days = hours // 24
+                return f"{days}d ago"
+        except Exception:
+            return "Recent"
 
     def is_relevant_job(self, title, description=""):
         text = (title + " " + description).lower()
@@ -121,7 +158,7 @@ class JobAlertBot:
         text = (title + " " + description).lower()
         score = 0
         
-        high_match = ["autosar", "bsw", "davinci", "canoe", "vector", "ecu", "valeo", "volkswagen", "vw"]
+        high_match = ["autosar", "bsw", "davinci", "canoe", "vector", "ecu", "valeo", "volkswagen", "vw", "visa sponsorship", "relocation"]
         for word in high_match:
             if word in text: score += 2
         
@@ -133,7 +170,7 @@ class JobAlertBot:
         for word in low_match:
             if word in text: score += 0.5
         
-        location_bonus = ["egypt", "cairo", "alexandria", "remote", "germany", "munich", "dubai", "uae", "saudi"]
+        location_bonus = ["egypt", "cairo", "alexandria", "remote", "germany", "munich", "stuttgart", "dubai", "uae", "saudi", "usa", "uk", "canada", "netherlands", "sweden", "japan", "visa", "sponsor", "relocation package", "relocation support"]
         for loc in location_bonus:
             if loc in text: score += 1
         
@@ -159,11 +196,11 @@ class JobAlertBot:
         
         for query in linkedin_queries:
             try:
-                url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={query.replace(' ', '%20')}&location=Egypt&start=0&f_TPR=r86400"
+                # f_TPR=r86400 = last 24 hours, no location filter = worldwide
+                url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={query.replace(' ', '%20')}&start=0&f_TPR=r86400"
                 response = requests.get(url, headers=HEADERS, timeout=10)
                 
                 if response.status_code != 200:
-                    # LinkedIn بتعمل rate limit ف هنحاول بطريقة تانية
                     url2 = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={query.replace(' ', '%20')}&start=0&f_TPR=r604800"
                     response = requests.get(url2, headers=HEADERS, timeout=10)
                     if response.status_code != 200:
@@ -207,7 +244,8 @@ class JobAlertBot:
                         'source': '💼 LinkedIn',
                         'location': location,
                         'stars': stars,
-                        'hash': job_hash
+                        'hash': job_hash,
+                        'posted_ago': 'Today'
                     })
                     
                 time.sleep(2)  # ثانيتين بين كل طلب عشان LinkedIn متعملش بان
@@ -229,7 +267,8 @@ class JobAlertBot:
         
         for query in glassdoor_queries:
             try:
-                url = f"https://www.glassdoor.com/Job/{query}-jobs-SRCH_KO0,{len(query.replace('-', ' '))}.htm"
+                # fromAge=1 = last 1 day filter on Glassdoor
+                url = f"https://www.glassdoor.com/Job/{query}-jobs-SRCH_KO0,{len(query.replace('-', ' '))}.htm?fromAge=1"
                 response = requests.get(url, headers=HEADERS, timeout=10)
                 
                 if response.status_code != 200:
@@ -267,7 +306,8 @@ class JobAlertBot:
                             'source': '🟢 Glassdoor',
                             'location': '',
                             'stars': stars,
-                            'hash': job_hash
+                            'hash': job_hash,
+                            'posted_ago': 'Today'
                         })
                 
                 for card in job_cards[:5]:
@@ -303,7 +343,8 @@ class JobAlertBot:
                         'source': '🟢 Glassdoor',
                         'location': '',
                         'stars': stars,
-                        'hash': job_hash
+                        'hash': job_hash,
+                        'posted_ago': 'Today'
                     })
                     
                 time.sleep(2)
@@ -323,6 +364,9 @@ class JobAlertBot:
                 feed = feedparser.parse(feed_url)
                 
                 for entry in feed.entries[:5]:
+                    # فلتر الـ 24 ساعة: لو الوظيفة أقدم من يوم نتخطاها
+                    if not self.is_within_24h(entry.get('published_parsed')):
+                        continue
                     title = entry.get('title', '')
                     link = entry.get('link', '')
                     description = entry.get('summary', '')
@@ -342,7 +386,8 @@ class JobAlertBot:
                         'source': '🔍 Google',
                         'location': '',
                         'stars': stars,
-                        'hash': job_hash
+                        'hash': job_hash,
+                        'posted_ago': self.get_age_text(entry.get('published_parsed'))
                     })
                     
             except Exception as e:
@@ -361,6 +406,9 @@ class JobAlertBot:
                 feed = feedparser.parse(feed_url)
                 
                 for entry in feed.entries[:5]:
+                    # فلتر الـ 24 ساعة: لو الوظيفة أقدم من يوم نتخطاها
+                    if not self.is_within_24h(entry.get('published_parsed')):
+                        continue
                     title = entry.get('title', '')
                     link = entry.get('link', '')
                     description = entry.get('summary', '')
@@ -380,7 +428,8 @@ class JobAlertBot:
                         'source': '🌍 Remote',
                         'location': 'Remote',
                         'stars': stars,
-                        'hash': job_hash
+                        'hash': job_hash,
+                        'posted_ago': self.get_age_text(entry.get('published_parsed'))
                     })
                     
             except Exception as e:
@@ -393,11 +442,13 @@ class JobAlertBot:
     def format_job_message(self, job):
         stars_display = "⭐" * job['stars'] + "☆" * (5 - job['stars'])
         location_line = f"\n📍 *Location:* `{job['location']}`" if job.get('location') else ""
+        posted = job.get('posted_ago', 'Recent')
         
         msg = (f"💼 *New Job Alert!*\n"
                f"📋 *{job['title'][:120]}*\n"
                f"🏢 *Source:* {job['source']}"
                f"{location_line}\n"
+               f"🕐 *Posted:* `{posted}`\n"
                f"🎯 *Match:* {stars_display}\n"
                f"🔗 [Apply Here]({job['link']})")
         
